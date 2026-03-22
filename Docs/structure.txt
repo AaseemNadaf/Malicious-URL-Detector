@@ -1,0 +1,14 @@
+malicious-url-detector/
+│
+├── data/
+│   ├── raw/              ← put downloaded files here
+│   └── processed/        ← cleaned output goes here
+│
+├── module1_data_prep/
+│   └── prepare_dataset.py
+│
+├── module2_features/
+├── module3_model/
+├── module4_api/
+├── module5_xai/
+└── module6_extension/

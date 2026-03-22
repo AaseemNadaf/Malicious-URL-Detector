@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Malicious URL Detector</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 340px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      background: #0f1117;
+      color: #e2e8f0;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid #1e2330;
+    }
+    .header-logo {
+      width: 28px; height: 28px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+    }
+    .header-title { font-size: 13px; font-weight: 600; color: #f1f5f9; }
+    .header-sub   { font-size: 11px; color: #64748b; margin-top: 1px; }
+
+    /* Main state area */
+    .state { padding: 14px 16px; }
+
+    /* Idle */
+    .idle-msg {
+      text-align: center; color: #475569;
+      font-size: 12px; padding: 16px 0; line-height: 1.6;
+    }
+    .idle-msg .icon { font-size: 28px; display: block; margin-bottom: 8px; }
+
+    /* Result card */
+    .result-card { border-radius: 10px; padding: 14px; margin-bottom: 4px; }
+    .result-card.safe        { background: #052e16; border: 1px solid #166534; }
+    .result-card.malicious   { background: #2d0a0a; border: 1px solid #7f1d1d; }
+    .result-card.whitelisted { background: #052e16; border: 1px solid #166534; }
+    .result-card.error       { background: #1c1917; border: 1px solid #44403c; }
+
+    /* Verdict */
+    .verdict-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .verdict-icon { font-size: 22px; flex-shrink: 0; }
+    .verdict-label { font-size: 16px; font-weight: 700; letter-spacing: 0.02em; }
+    .verdict-label.safe      { color: #4ade80; }
+    .verdict-label.malicious { color: #f87171; }
+    .verdict-sub { font-size: 11px; margin-top: 2px; }
+    .verdict-sub.safe        { color: #86efac; }
+    .verdict-sub.malicious   { color: #fca5a5; }
+
+    /* Confidence bar */
+    .conf-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .conf-label { font-size: 11px; color: #64748b; width: 68px; flex-shrink: 0; }
+    .conf-track { flex: 1; height: 5px; background: #1e293b; border-radius: 99px; overflow: hidden; }
+    .conf-fill  { height: 100%; border-radius: 99px; transition: width 0.4s ease; }
+    .conf-fill.safe      { background: #4ade80; }
+    .conf-fill.malicious { background: #f87171; }
+    .conf-pct { font-size: 11px; color: #94a3b8; width: 34px; text-align: right; }
+
+    /* URL box */
+    .url-box {
+      background: #0f172a; border: 1px solid #1e293b;
+      border-radius: 6px; padding: 7px 9px;
+      font-family: 'Menlo', 'Consolas', monospace;
+      font-size: 10px; color: #94a3b8;
+      word-break: break-all; margin-bottom: 10px;
+      max-height: 46px; overflow: hidden;
+    }
+
+    /* Explanation */
+    .explanation-title {
+      font-size: 11px; font-weight: 600; color: #64748b;
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;
+    }
+    .explanation-text {
+      font-size: 12px; color: #cbd5e1;
+      line-height: 1.55; margin-bottom: 10px;
+    }
+
+    /* Reason pills */
+    .reasons-row {
+      display: flex; flex-wrap: wrap;
+      gap: 5px; margin-bottom: 10px;
+    }
+    .reason-pill {
+      font-size: 10px; color: #fca5a5;
+      background: #450a0a; border: 1px solid #7f1d1d;
+      border-radius: 99px; padding: 2px 8px;
+      line-height: 1.6;
+    }
+
+    /* LIME token rows */
+    .segments-title {
+      font-size: 11px; font-weight: 600; color: #64748b;
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;
+    }
+    .token-row { margin-bottom: 8px; }
+    .token-top {
+      display: flex; align-items: center;
+      gap: 7px; margin-bottom: 3px;
+    }
+    .token-text {
+      font-family: 'Menlo', 'Consolas', monospace;
+      font-size: 11px; background: #1e293b; color: #e2e8f0;
+      padding: 2px 7px; border-radius: 4px;
+      min-width: 56px; text-align: center; flex-shrink: 0;
+    }
+    .token-bar-track {
+      flex: 1; height: 4px; background: #1e293b;
+      border-radius: 99px; overflow: hidden;
+    }
+    .token-bar-fill { height: 100%; background: #f87171; border-radius: 99px; }
+    .token-score {
+      font-size: 10px; color: #64748b;
+      width: 32px; text-align: right; flex-shrink: 0;
+    }
+    .token-reason {
+      font-size: 10px; color: #64748b;
+      margin-left: 4px; line-height: 1.4;
+    }
+
+    /* Whitelist badge */
+    .whitelist-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #14532d; color: #86efac;
+      font-size: 10px; font-weight: 600;
+      padding: 2px 7px; border-radius: 99px; margin-top: 4px;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 8px 16px 12px;
+      display: flex; align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid #1e2330;
+    }
+    .footer-status { font-size: 10px; color: #475569; }
+    .footer-dot {
+      display: inline-block; width: 6px; height: 6px;
+      border-radius: 50%; background: #22c55e;
+      margin-right: 5px; vertical-align: middle;
+    }
+    .footer-dot.offline { background: #ef4444; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-logo">🛡</div>
+    <div>
+      <div class="header-title">URL Shield</div>
+      <div class="header-sub">Malicious URL Detector</div>
+    </div>
+  </div>
+
+  <div class="state" id="main-state">
+    <div class="idle-msg">
+      <span class="icon">🔍</span>
+      Click any link on the page<br>to scan it for threats.
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="footer-status">
+      <span class="footer-dot" id="api-dot"></span>
+      <span id="api-status">Checking API...</span>
+    </span>
+    <span class="footer-status" id="checked-at"></span>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

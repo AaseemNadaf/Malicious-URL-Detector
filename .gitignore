@@ -1,0 +1,97 @@
+# ─────────────────────────────────────────────
+#  Malicious URL Detector — .gitignore
+# ─────────────────────────────────────────────
+
+
+# ── Data ──────────────────────────────────────
+# Raw and processed data files are too large for Git.
+# Share via Google Drive or a dataset hosting service instead.
+data/raw/
+data/processed/*.npy
+data/processed/*.csv
+
+# Keep the vocab file — it's small and needed by teammates
+!data/processed/char_vocab.json
+
+
+# ── Trained Models ────────────────────────────
+# Model files are large (50MB+). Use Git LFS or share via Drive.
+models/
+*.h5
+*.keras
+*.pb
+*.tflite
+
+
+# ── Python ────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+*.ipynb
+
+
+# ── VS Code ───────────────────────────────────
+.vscode/
+*.code-workspace
+
+
+# ── Environment variables ─────────────────────
+# Never commit API keys or secrets
+.env
+.env.local
+.env.*.local
+secrets.json
+config.local.py
+
+
+# ── OS files ──────────────────────────────────
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+
+
+# ── Logs & reports ────────────────────────────
+*.log
+logs/
+reports/
+*.png          # training plots — regenerate from model
+!module6_extension/icons/*.png   # keep extension icons
+
+
+# ── Chrome extension ──────────────────────────
+module6_extension/node_modules/
+
+
+# ── Flask / API ───────────────────────────────
+instance/
+flask_session/
