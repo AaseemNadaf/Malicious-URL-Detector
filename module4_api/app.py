@@ -1,7 +1,7 @@
 """
-Module 4 - Flask REST API (with Module 5 LIME XAI)
-====================================================
-Project : Malicious URL Detector (CNN + XAI)
+Module 4 - Flask REST API (CNN + BiLSTM + LIME XAI)
+=====================================================
+Project : Malicious URL Detector
 File    : module4_api/app.py
 Run     : python app.py
 """
@@ -16,13 +16,17 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import (
     Input, Embedding, Conv1D, MaxPooling1D,
     GlobalMaxPooling1D, Dense, Dropout,
-    Concatenate, SpatialDropout1D
+    Concatenate, SpatialDropout1D,
+    Bidirectional, LSTM
 )
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 # Import LIME explainer from Module 5
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'module5_xai'))
+sys.path.append(os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'module5_xai'
+))
 from explainer import URLLimeExplainer, build_lime_explanation
 
 
@@ -175,12 +179,14 @@ def is_trusted(url: str) -> bool:
 
 
 # ==============================================================
-# 2. BUILD MODEL ARCHITECTURE
+# 2. BUILD MODEL ARCHITECTURE (CNN + BiLSTM)
+#    Must be identical to Colab Cell 4
 # ==============================================================
 
 def build_model(vocab_size: int, max_len: int,
                 embedding_dim: int, n_features: int) -> Model:
 
+    # Shared input + embedding
     seq_input = Input(shape=(max_len,), name="url_input")
     x = Embedding(
         input_dim=vocab_size,
@@ -189,6 +195,7 @@ def build_model(vocab_size: int, max_len: int,
     )(seq_input)
     x = SpatialDropout1D(0.2, name="spatial_dropout")(x)
 
+    # CNN Branch 1: bigrams (k=2)
     b1 = Conv1D(128, kernel_size=2, activation='relu',
                 padding='same', name="conv1_k2")(x)
     b1 = MaxPooling1D(pool_size=2, name="pool1_k2")(b1)
@@ -196,6 +203,7 @@ def build_model(vocab_size: int, max_len: int,
                 padding='same', name="conv2_k2")(b1)
     b1 = GlobalMaxPooling1D(name="gpool_k2")(b1)
 
+    # CNN Branch 2: trigrams (k=3)
     b2 = Conv1D(128, kernel_size=3, activation='relu',
                 padding='same', name="conv1_k3")(x)
     b2 = MaxPooling1D(pool_size=2, name="pool1_k3")(b2)
@@ -203,6 +211,7 @@ def build_model(vocab_size: int, max_len: int,
                 padding='same', name="conv2_k3")(b2)
     b2 = GlobalMaxPooling1D(name="gpool_k3")(b2)
 
+    # CNN Branch 3: 5-grams (k=5)
     b3 = Conv1D(128, kernel_size=5, activation='relu',
                 padding='same', name="conv1_k5")(x)
     b3 = MaxPooling1D(pool_size=2, name="pool1_k5")(b3)
@@ -210,22 +219,40 @@ def build_model(vocab_size: int, max_len: int,
                 padding='same', name="conv2_k5")(b3)
     b3 = GlobalMaxPooling1D(name="gpool_k5")(b3)
 
+    # BiLSTM branch - reads full sequence both directions
+    # recurrent_dropout intentionally omitted to keep CuDNN acceleration
+    b4 = Bidirectional(
+        LSTM(64, return_sequences=False, dropout=0.2),
+        name="bilstm"
+    )(x)
+
+    # Merge CNN branches (192-dim)
     cnn_out = Concatenate(name="cnn_merge")([b1, b2, b3])
 
-    feat_input = Input(shape=(n_features,), name="feature_input")
-    feat_out = Dense(32, activation='relu', name="feat_dense")(feat_input)
+    # Merge CNN + BiLSTM (320-dim)
+    seq_out = Concatenate(name="seq_merge")([cnn_out, b4])
 
-    merged = Concatenate(name="final_merge")([cnn_out, feat_out])
-    out = Dense(256, activation='relu',    name="dense1")(merged)
-    out = Dropout(0.5,                     name="dropout1")(out)
-    out = Dense(128, activation='relu',    name="dense2")(out)
-    out = Dropout(0.4,                     name="dropout2")(out)
-    out = Dense(64,  activation='relu',    name="dense3")(out)
-    out = Dropout(0.3,                     name="dropout3")(out)
+    # Explicit features branch (32-dim)
+    feat_input = Input(shape=(n_features,), name="feature_input")
+    feat_out   = Dense(32, activation='relu', name="feat_dense")(feat_input)
+
+    # Merge all (352-dim)
+    merged = Concatenate(name="final_merge")([seq_out, feat_out])
+
+    # Classification head
+    out = Dense(256, activation='relu', name="dense1")(merged)
+    out = Dropout(0.5,                  name="dropout1")(out)
+    out = Dense(128, activation='relu', name="dense2")(out)
+    out = Dropout(0.4,                  name="dropout2")(out)
+    out = Dense(64,  activation='relu', name="dense3")(out)
+    out = Dropout(0.3,                  name="dropout3")(out)
     output = Dense(1, activation='sigmoid', name="output")(out)
 
-    return Model(inputs=[seq_input, feat_input], outputs=output,
-                 name="HybridURLCNN")
+    return Model(
+        inputs=[seq_input, feat_input],
+        outputs=output,
+        name="HybridCNNBiLSTM"
+    )
 
 
 # ==============================================================
@@ -247,14 +274,14 @@ with open(THRESHOLD_PATH) as f:
     THRESHOLD = json.load(f)["threshold"]
 print(f"  Threshold        : {THRESHOLD:.4f}")
 
-print("  Building model...")
+print("  Building model (CNN + BiLSTM)...")
 model = build_model(VOCAB_SIZE, MAX_LEN, EMBEDDING_DIM, N_FEATURES)
 
 print("  Loading weights...")
 model.load_weights(WEIGHTS_PATH)
 print("  Weights loaded.")
 
-# Warm-up
+# Warm-up pass
 _dummy_seq   = np.zeros((1, MAX_LEN),    dtype=np.int32)
 _dummy_feats = np.zeros((1, N_FEATURES), dtype=np.float32)
 model.predict([_dummy_seq, _dummy_feats], verbose=0)
@@ -298,14 +325,14 @@ def extract_features(url: str) -> np.ndarray:
 # 5. INITIALISE LIME EXPLAINER
 # ==============================================================
 
+# In app.py - num_samples already reduced in new explainer default
 lime_explainer = URLLimeExplainer(
     predict_fn  = model.predict,
     encode_fn   = encode_url,
     feature_fn  = extract_features,
-    num_samples = 300    # 300 perturbations - good balance of speed vs accuracy
+    num_samples = 150    # reduced from 300, batched so still fast
 )
-
-print("  LIME explainer initialised.")
+print("  LIME explainer initialised.\n")
 
 
 # ==============================================================
@@ -361,13 +388,13 @@ def predict():
     label        = "malicious" if is_malicious else "safe"
     confidence   = risk_score if is_malicious else (1.0 - risk_score)
 
-    # LIME explanation (only run for malicious to save time on safe URLs)
+    # LIME explanation - only for malicious URLs
     if is_malicious:
-        lime_results  = lime_explainer.explain(url)
-        xai_output    = build_lime_explanation(url, label, lime_results)
+        lime_results = lime_explainer.explain(url)
+        xai_output   = build_lime_explanation(url, label, lime_results)
     else:
-        lime_results  = []
-        xai_output    = build_lime_explanation(url, label, [])
+        lime_results = []
+        xai_output   = build_lime_explanation(url, label, [])
 
     return jsonify({
         "url":          url,
