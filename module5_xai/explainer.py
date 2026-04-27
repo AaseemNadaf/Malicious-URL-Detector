@@ -1,18 +1,3 @@
-"""
-Module 5 - LIME XAI Explainer (Optimized)
-==========================================
-Project : Malicious URL Detector
-File    : module5_xai/explainer.py
-
-Optimizations over v1:
-  1. Batched predictions - all 150 perturbed URLs sent to model in ONE call
-     instead of 300 individual calls. ~10x faster.
-  2. Reduced num_samples from 300 to 150 - negligible accuracy loss,
-     50% fewer predictions needed.
-  3. URL result cache - same URL checked twice returns instantly.
-  4. Features computed once and reused across all perturbations.
-"""
-
 import re
 import numpy as np
 from typing import Callable

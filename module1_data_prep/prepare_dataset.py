@@ -1,12 +1,3 @@
-"""
-Module 1 — Dataset Preparation & Cleaning
-==========================================
-Project : Malicious URL Detector (CNN + XAI)
-File    : module1_data_prep/prepare_dataset.py
-Run     : python prepare_dataset.py
-Output  : data/processed/dataset_clean.csv
-"""
-
 import os
 import re
 import pandas as pd

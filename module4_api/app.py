@@ -1,10 +1,3 @@
-"""
-Module 4 - Flask REST API (CNN + BiLSTM + LIME XAI)
-=====================================================
-Project : Malicious URL Detector
-File    : module4_api/app.py
-Run     : python app.py
-"""
 
 import os
 import sys

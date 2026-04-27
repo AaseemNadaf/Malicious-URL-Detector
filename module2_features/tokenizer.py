@@ -1,19 +1,3 @@
-"""
-Module 2 — Feature Engineering & Tokenization
-===============================================
-Project : Malicious URL Detector (CNN + XAI)
-File    : module2_features/tokenizer.py
-Run     : python tokenizer.py
-Outputs :
-    data/processed/X_train.npy   ← training sequences
-    data/processed/X_val.npy     ← validation sequences
-    data/processed/X_test.npy    ← test sequences
-    data/processed/y_train.npy   ← training labels
-    data/processed/y_val.npy     ← validation labels
-    data/processed/y_test.npy    ← test labels
-    data/processed/char_vocab.json  ← character → integer mapping
-"""
-
 import os
 import json
 import numpy as np
